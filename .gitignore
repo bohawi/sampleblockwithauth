@@ -24,3 +24,5 @@ npm-debug.log
 # MAC STUFF
 .DS_Store
 *.orig
+
+.env

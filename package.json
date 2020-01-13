@@ -28,6 +28,7 @@
     "request": "^2.88.0"
   },
   "devDependencies": {
+    "dotenv": "^8.2.0",
     "webpack": "^3.10.0",
     "webpack-css-loaders": "^1.0.0"
   }

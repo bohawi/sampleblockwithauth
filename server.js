@@ -1,22 +1,25 @@
-var express = require('express');
-var session = require('express-session');
-var proxy = require('http-proxy-middleware');
-var bodyParser = require('body-parser');
-var jwt = require('jwt-simple');
-var request = require('request');
+const express = require('express');
+const session = require('express-session');
+const proxy = require('http-proxy-middleware');
+const bodyParser = require('body-parser');
+const request = require('request');
+
+if (process.env.NODE_ENV === 'development') {
+	require('dotenv').config();
+}
 
 // wherever this is hosted needs to have those
 // environment variables set to the MC app values
 // given to you by the app center page
-var authURL = process.env.AUTH_URL;
-var restURL = process.env.REST_URL;
-var clientId = process.env.CLIENT_ID;
-var clientSecret = process.env.CLIENT_SECRET;
-var redirectURL = process.env.REDIRECT_URL;
+const authURL = process.env.AUTH_URL;
+const restURL = process.env.REST_URL;
+const clientId = process.env.CLIENT_ID;
+const clientSecret = process.env.CLIENT_SECRET;
+const redirectURL = process.env.REDIRECT_URL;
 
 
-var app = express();
-var tssd = '';
+const app = express();
+let tssd = '';
 
 // body parser for post
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -39,6 +42,59 @@ app.use(session({
 	saveUninitialized: true,
 	resave: false
 }));
+
+app.get('/', (req, res, next) => {
+	const code = req.query.code;
+
+	if (code) {
+		// User has authenticated with Marketing Cloud.  Get an auth token and render the block
+		tssd = req.query.tssd;
+
+		// the call to the auth endpoint is done right away
+		// for demo purposes. In a prod app, you will want to
+		// separate that logic out and repeat this process
+		// everytime the access token expires
+		request.post(
+			tssd || authURL + '/v2/token', 
+			{
+				form: {
+					client_id: clientId,
+					client_secret: clientSecret,
+					grant_type: 'authorization_code',
+					redirect_uri: redirectURL,
+					code: code,
+				}
+			},
+			function (error, response, body) {
+				const result = JSON.parse(body);
+
+				if (!error && response.statusCode == 200) {
+					// storing the refresh token is useless in the demo
+					// but in a prod app it will be used next time we
+					// want to refresh the access token
+					//req.session.refreshToken = result.refreshToken;
+
+					// the access token below can authenticate
+					// against the MC API
+					req.session.accessToken = result.access_token;
+					req.session.save(next);
+
+					return;
+				}
+
+				next();
+			}
+		);
+	} else if (!req.session.accessToken) {
+		// User has not been authenticated yet, kick off the OAuth flow
+		res.redirect(302,`${authURL}/v2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectURL)}`);
+		
+		return;
+	} else {
+		// User has already authenticated and we have a token, let's go!
+		next();
+	}
+});
 
 //static serve or the dist folder
 app.use(express.static('dist'));
@@ -68,49 +124,6 @@ app.use('/proxy', proxy({
 		// you can do something here more than pass through proxying
 	}
 }));
-
-app.get('/authInfo', function (req, res) {
-	res.send({
-		authURL: authURL,
-		redirectURL: redirectURL,
-		clientId: clientId
-	});
-});
-
-// MC Oauth will post to whatever URL you specify as the login URL
-// in the app center when the user opens the app. In our case /login
-// the posted code can be use to get an access token.
-// That access is used to authenticate MC API calls
-app.get('/login', function (req, res, next) {
-	var code = req.query.code;
-	tssd = req.query.tssd;
-
-	// the call to the auth endpoint is done right away
-	// for demo purposes. In a prod app, you will want to
-	// separate that logic out and repeat this process
-	// everytime the access token expires
-	request.post(tssd || authURL + '/v2/token', {form: {
-		client_id: clientId,
-		client_secret: clientSecret,
-		grant_type: "authorization_code",
-		redirect_uri: redirectURL,
-		code: code,
-	}}, function (error, response, body) {
-		if (!error && response.statusCode == 200) {
-			var result = JSON.parse(body);
-			// storing the refresh token is useless in the demo
-			// but in a prod app it will be used next time we
-			// want to refresh the access token
-			//req.session.refreshToken = result.refreshToken;
-
-			// the access token below can authenticate
-			// against the MC API
-			req.session.accessToken = result.access_token;
-			req.session.save();
-		}
-		next();
-	});
-});
 
 // start the app, listening to whatever port environment
 // variable is set by the host

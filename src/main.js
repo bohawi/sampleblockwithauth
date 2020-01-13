@@ -3,14 +3,6 @@ require('../node_modules/@salesforce-ux/design-system/assets/styles/salesforce-l
 var SDK = require('blocksdk');
 var sdk = new SDK();
 
-
-fetch('/authInfo').then(function (res) {
-	return res.json();
-}).then(function (response) {
-	sdk.triggerAuth2(response);
-});
-
-
 var post = function (url, data, cb) {
 	fetch('/proxy/' + url, {
 		method: 'POST',
@@ -20,11 +12,9 @@ var post = function (url, data, cb) {
 		mode: 'no-cors'
 	}).then(function (res) {
 		if (res.status === 401) {
-			setTimeout(function () {
-				post(url, data, cb);
-			}, 100);
 			return Promise.reject('401');
 		}
+
 		return res.json();
 	}).then(function (data) {
 		cb(data);
@@ -38,8 +28,8 @@ window.setContent = function (url) {
 var getImages = function () {
 	post('asset/v1/content/assets/query', {
 		query: {
-			property: "assetType.id",
-			simpleOperator: "in",
+			property: 'assetType.id',
+			simpleOperator: 'in',
 			value: [20, 22, 23, 28]
 		}
 	}, function (data) {
