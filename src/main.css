@@ -1,0 +1,11 @@
+#workspace img {
+	width: 75px;
+	height: 75px;
+	border-radius: 2px;
+	border: 3px transparent;
+	margin: 5px;
+}
+
+#workspace img.selected {
+	border: 5px solid orange;
+}
